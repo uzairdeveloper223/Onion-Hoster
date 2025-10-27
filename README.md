@@ -223,6 +223,7 @@ Onion-Hoster/
 ├── requirements.txt        # Python dependencies
 ├── README.md              # This file
 ├── LICENSE                # License file
+|--- example-site/          # Example static website
 ├── config/
 │   └── version.json       # Version information
 ├── src/
@@ -349,7 +350,7 @@ See [MANUAL_SETUP_GUIDE.md](MANUAL_SETUP_GUIDE.md) for detailed technical docume
 - [x] Real-time progress feedback in CLI/GUI
 - [x] Cross-platform support (Linux, macOS, Windows, Termux)
 - [ ] Support for dynamic content (PHP, Node.js)
-- [ ] Built-in website templates
+- [x] Built-in website templates
 - [ ] Multiple site management
 - [ ] Traffic statistics and analytics (privacy-preserving)
 - [ ] Custom vanity .onion addresses
