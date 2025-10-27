@@ -1,0 +1,23 @@
+# Onion Hoster Requirements
+# Author: Uzair Developer
+# GitHub: uzairdeveloper223
+
+# GUI Framework
+customtkinter>=5.2.0
+pillow>=10.0.0
+
+# CLI Utilities
+pyperclip>=1.8.2
+
+# Networking and Updates
+requests>=2.31.0
+packaging>=23.0
+
+# System utilities
+psutil>=5.9.0
+
+# For better cross-platform support
+python-dotenv>=1.0.0
+
+# Optional: For enhanced features
+colorama>=0.4.6

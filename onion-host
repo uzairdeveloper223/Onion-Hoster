@@ -1,0 +1,36 @@
+#!/bin/bash
+#
+# Onion Hoster - Bash Launcher Script
+# Author: Uzair Developer
+# GitHub: uzairdeveloper223
+#
+# This script launches Onion Hoster on Unix-based systems (Linux, macOS, Termux)
+#
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Check if Python 3 is available
+if command -v python3 &> /dev/null; then
+    PYTHON_CMD="python3"
+elif command -v python &> /dev/null; then
+    # Check if it's Python 3
+    PYTHON_VERSION=$(python --version 2>&1 | awk '{print $2}' | cut -d. -f1)
+    if [ "$PYTHON_VERSION" = "3" ]; then
+        PYTHON_CMD="python"
+    else
+        echo "Error: Python 3 is required but not found."
+        echo "Please install Python 3 to use Onion Hoster."
+        exit 1
+    fi
+else
+    echo "Error: Python is not installed."
+    echo "Please install Python 3 to use Onion Hoster."
+    exit 1
+fi
+
+# Change to script directory
+cd "$SCRIPT_DIR" || exit 1
+
+# Launch the Python script with all arguments
+exec "$PYTHON_CMD" "$SCRIPT_DIR/onion-host.py" "$@"

@@ -1,0 +1,28 @@
+{
+    "version": "1.0.0",
+    "release_date": "2024-01-01",
+    "author": "Uzair Developer",
+    "github": "uzairdeveloper223",
+    "repository": "https://github.com/uzairdeveloper223/Onion-Hoster",
+    "description": "A cross-platform utility tool to host static websites on the Tor network",
+    "update_check_url": "https://raw.githubusercontent.com/uzairdeveloper223/Onion-Hoster/main/config/version.json",
+    "changelog": [
+        {
+            "version": "1.0.0",
+            "date": "2024-01-01",
+            "changes": [
+                "Initial release",
+                "GUI support with Material You design",
+                "CLI support for Termux and terminal environments",
+                "Cross-platform support (Linux, Windows, Mac)",
+                "Auto-detection of OS and desktop environment",
+                "Tor installation checker and auto-installer",
+                "Nginx configuration and setup",
+                "Automatic .onion domain generation",
+                "One-click Tor Browser opening",
+                "Auto-update functionality",
+                "Configuration management"
+            ]
+        }
+    ]
+}
