@@ -62,7 +62,7 @@ class ConfigManager:
 
     def _get_default_config(self) -> Dict[str, Any]:
         """Get default configuration settings."""
-        from .constants import VERSION, NGINX_DEFAULT_PORT
+        from .constants import VERSION, NGINX_DEFAULT_PORT, HOSTING_METHOD_NGINX
 
         return {
             "version": VERSION,
@@ -70,6 +70,8 @@ class ConfigManager:
             "last_updated": None,
             "site_directory": None,
             "nginx_port": NGINX_DEFAULT_PORT,
+            "hosting_method": HOSTING_METHOD_NGINX,
+            "custom_port": None,
             "onion_address": None,
             "service_running": False,
             "auto_start": False,

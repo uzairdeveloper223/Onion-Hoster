@@ -1,0 +1,115 @@
+{
+    "version": "1.0.0",
+    "first_run": true,
+    "last_updated": null,
+    "site_directory": "example-site",
+    "nginx_port": 8080,
+    "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+    "service_running": false,
+    "auto_start": false,
+    "theme": "dark",
+    "accent_color": "#7D4698",
+    "language": "en",
+    "check_updates_on_start": true,
+    "show_notifications": true,
+    "log_level": "INFO",
+    "hidden_service_dir": "/var/lib/tor/hidden_service",
+    "nginx_config_name": "onion-site",
+    "created_at": "2025-10-26T19:12:37.932705",
+    "last_modified": "2025-10-27T16:43:45.862571",
+    "services": {
+        "tor_enabled": false,
+        "nginx_enabled": false,
+        "tor_installed": true,
+        "nginx_installed": true,
+        "tor_browser_installed": true,
+        "xclip_installed": true
+    },
+    "platform": {
+        "os_type": "linux",
+        "distro": "debian",
+        "desktop_env": "GNOME"
+    },
+    "history": [
+        {
+            "action": "service_started",
+            "site_directory": "/home/uzair/Tools/Onion-Hoster/example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-26T21:11:03.468747"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T06:47:02.761496"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "/home/uzair/Tools/Onion-Hoster/example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T07:03:56.882122"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T07:04:32.836303"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "/home/uzair/Tools/Onion-Hoster/example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T07:08:20.019821"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T07:08:52.685646"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "/home/uzair/Tools/Onion-Hoster/example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T07:23:46.293644"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T07:34:47.380919"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T15:21:33.299737"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T15:23:14.398485"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T15:32:24.915944"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T15:32:39.481876"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T15:48:53.642388"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T15:54:47.299497"
+        },
+        {
+            "action": "service_started",
+            "site_directory": "example-site",
+            "onion_address": "beaq5dbuqfnpogwpml2ihaguumyuovbw62fwrx4t36ogbz2atcolkryd.onion",
+            "timestamp": "2025-10-27T16:34:12.612150"
+        },
+        {
+            "action": "service_stopped",
+            "timestamp": "2025-10-27T16:43:45.862523"
+        }
+    ]
+}

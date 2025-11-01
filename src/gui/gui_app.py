@@ -29,6 +29,8 @@ from core.constants import (
     THEME_COLORS,
     GUI_WINDOW_SIZE,
     GUI_MIN_WINDOW_SIZE,
+    HOSTING_METHOD_NGINX,
+    HOSTING_METHOD_CUSTOM_PORT,
 )
 from core.system_detector import get_system_detector
 from core.config_manager import get_config_manager
@@ -83,6 +85,14 @@ class OnionHosterGUI:
         )
         self.service_status_var = tk.StringVar(value="Stopped")
         self.status_message_var = tk.StringVar(value="Ready")
+
+        # Hosting method variables
+        self.hosting_method_var = tk.StringVar(
+            value=self.config.get("hosting_method", HOSTING_METHOD_NGINX)
+        )
+        self.custom_port_var = tk.StringVar(
+            value=str(self.config.get("custom_port", ""))
+        )
 
         # Create UI
         self.create_widgets()
@@ -251,9 +261,42 @@ class OnionHosterGUI:
         )
         self.restart_btn.grid(row=0, column=2, padx=10, pady=10, sticky="ew")
 
+        # Bootstrap progress section
+        progress_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
+        progress_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=10)
+        progress_frame.grid_columnconfigure(0, weight=1)
+
+        self.progress_label = ctk.CTkLabel(
+            progress_frame,
+            text="Bootstrap Progress: Ready",
+            font=ctk.CTkFont(size=12),
+        )
+        self.progress_label.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="w")
+
+        self.progress_bar = ctk.CTkProgressBar(
+            progress_frame,
+            width=400,
+            height=20,
+        )
+        self.progress_bar.grid(row=1, column=0, padx=15, pady=(0, 10), sticky="ew")
+        self.progress_bar.set(0)
+
+        self.progress_percentage = ctk.CTkLabel(
+            progress_frame,
+            text="0%",
+            font=ctk.CTkFont(size=11, weight="bold"),
+        )
+        self.progress_percentage.grid(
+            row=2, column=0, padx=15, pady=(0, 15), sticky="w"
+        )
+
+        # Initially hide progress frame
+        progress_frame.grid_remove()
+        self.progress_frame = progress_frame
+
         # Onion address section
         address_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        address_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=20)
+        address_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=20)
         address_frame.grid_columnconfigure(0, weight=1)
 
         address_label = ctk.CTkLabel(
@@ -301,8 +344,8 @@ class OnionHosterGUI:
 
         # Log/Info area
         log_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        log_frame.grid(row=3, column=0, sticky="nsew", padx=20, pady=(10, 20))
-        tab.grid_rowconfigure(3, weight=1)
+        log_frame.grid(row=4, column=0, sticky="nsew", padx=20, pady=(10, 20))
+        tab.grid_rowconfigure(4, weight=1)
 
         log_label = ctk.CTkLabel(
             log_frame, text="Activity Log:", font=ctk.CTkFont(size=14, weight="bold")
@@ -323,36 +366,112 @@ class OnionHosterGUI:
         tab = self.tab_config
         tab.grid_columnconfigure(0, weight=1)
 
-        # Nginx port setting
+        # Hosting Method Selection
+        method_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
+        method_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=20)
+        method_frame.grid_columnconfigure(0, weight=1)
+
+        method_label = ctk.CTkLabel(
+            method_frame,
+            text="Hosting Method:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+        )
+        method_label.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="w")
+
+        # Radio buttons for hosting method
+        radio_frame = ctk.CTkFrame(method_frame, fg_color="transparent")
+        radio_frame.grid(row=1, column=0, padx=15, pady=5, sticky="ew")
+
+        nginx_radio = ctk.CTkRadioButton(
+            radio_frame,
+            text="Use Nginx (Static sites only - HTML, CSS, JS, images)",
+            variable=self.hosting_method_var,
+            value=HOSTING_METHOD_NGINX,
+            command=self.on_hosting_method_changed,
+            font=ctk.CTkFont(size=12),
+        )
+        nginx_radio.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+
+        custom_radio = ctk.CTkRadioButton(
+            radio_frame,
+            text="Use Custom Port (Full support - PHP, databases, dynamic content)",
+            variable=self.hosting_method_var,
+            value=HOSTING_METHOD_CUSTOM_PORT,
+            command=self.on_hosting_method_changed,
+            font=ctk.CTkFont(size=12),
+        )
+        custom_radio.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+
+        # Warning label
+        self.method_warning_label = ctk.CTkLabel(
+            method_frame,
+            text="⚠️ Nginx method: Only static websites will work (no PHP, no server-side processing)",
+            font=ctk.CTkFont(size=11),
+            text_color=THEME_COLORS["warning"],
+            wraplength=700,
+        )
+        self.method_warning_label.grid(
+            row=2, column=0, padx=15, pady=(5, 15), sticky="w"
+        )
+
+        # Port configuration section
         port_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        port_frame.grid(row=0, column=0, sticky="ew", padx=20, pady=20)
+        port_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
         port_frame.grid_columnconfigure(1, weight=1)
 
-        port_label = ctk.CTkLabel(
-            port_frame, text="Nginx Port:", font=ctk.CTkFont(size=14, weight="bold")
+        # Nginx Port
+        nginx_port_label = ctk.CTkLabel(
+            port_frame, text="Nginx Port:", font=ctk.CTkFont(size=13, weight="bold")
         )
-        port_label.grid(row=0, column=0, padx=15, pady=15, sticky="w")
+        nginx_port_label.grid(row=0, column=0, padx=15, pady=10, sticky="w")
 
         self.port_var = tk.StringVar(value=str(self.config.get("nginx_port", 8080)))
-        port_entry = ctk.CTkEntry(
+        self.nginx_port_entry = ctk.CTkEntry(
             port_frame, textvariable=self.port_var, width=150, height=35
         )
-        port_entry.grid(row=0, column=1, padx=15, pady=15, sticky="w")
+        self.nginx_port_entry.grid(row=0, column=1, padx=15, pady=10, sticky="w")
+
+        # Custom Port
+        custom_port_label = ctk.CTkLabel(
+            port_frame,
+            text="Custom Website Port:",
+            font=ctk.CTkFont(size=13, weight="bold"),
+        )
+        custom_port_label.grid(row=1, column=0, padx=15, pady=10, sticky="w")
+
+        self.custom_port_entry = ctk.CTkEntry(
+            port_frame, textvariable=self.custom_port_var, width=150, height=35
+        )
+        self.custom_port_entry.grid(row=1, column=1, padx=15, pady=10, sticky="w")
+
+        port_info_label = ctk.CTkLabel(
+            port_frame,
+            text="⚠️ Port 9050 is reserved for Tor. Ports 1-1023 require root privileges.",
+            font=ctk.CTkFont(size=10),
+            text_color=THEME_COLORS["text_secondary"],
+            wraplength=700,
+        )
+        port_info_label.grid(
+            row=2, column=0, columnspan=3, padx=15, pady=(0, 10), sticky="w"
+        )
 
         port_save_btn = ctk.CTkButton(
             port_frame,
-            text="Save",
+            text="Save Port Configuration",
             command=self.save_port_config,
-            width=100,
+            width=200,
             height=35,
             fg_color=THEME_COLORS["primary"],
             hover_color=THEME_COLORS["primary_dark"],
         )
-        port_save_btn.grid(row=0, column=2, padx=15, pady=15, sticky="e")
+        port_save_btn.grid(row=3, column=0, columnspan=3, padx=15, pady=(0, 15))
+
+        # Update UI based on current method
+        self.on_hosting_method_changed()
 
         # Auto-start setting
         autostart_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        autostart_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(0, 20))
+        autostart_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 20))
 
         self.autostart_var = tk.BooleanVar(value=self.config.get("auto_start", False))
         autostart_check = ctk.CTkCheckBox(
@@ -366,7 +485,7 @@ class OnionHosterGUI:
 
         # Update settings
         update_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        update_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=(0, 20))
+        update_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 20))
 
         self.check_updates_var = tk.BooleanVar(
             value=self.config.get("check_updates_on_start", True)
@@ -382,7 +501,7 @@ class OnionHosterGUI:
 
         # Config actions
         actions_frame = ctk.CTkFrame(tab, fg_color=THEME_COLORS["surface_variant"])
-        actions_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 20))
+        actions_frame.grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 20))
 
         actions_label = ctk.CTkLabel(
             actions_frame,
@@ -515,9 +634,7 @@ class OnionHosterGUI:
             fg_color=THEME_COLORS["primary"],
             hover_color=THEME_COLORS["primary_dark"],
         )
-        self.browser_install_btn.grid(
-        row=3, column=1, padx=15, pady=5, sticky="e"
-        )
+        self.browser_install_btn.grid(row=3, column=1, padx=15, pady=5, sticky="e")
 
         # xclip
         self.xclip_status_label = ctk.CTkLabel(
@@ -534,9 +651,7 @@ class OnionHosterGUI:
             fg_color=THEME_COLORS["primary"],
             hover_color=THEME_COLORS["primary_dark"],
         )
-        self.xclip_install_btn.grid(
-            row=4, column=1, padx=15, pady=(5, 15), sticky="e"
-        )
+        self.xclip_install_btn.grid(row=4, column=1, padx=15, pady=(5, 15), sticky="e")
 
         # Refresh button
         refresh_btn = ctk.CTkButton(
@@ -669,7 +784,9 @@ class OnionHosterGUI:
     def _ensure_sudo_password(self):
         """Ensure sudo password is set if needed."""
         if not self.system.check_permissions() and self.service._sudo_password is None:
-            dialog = CTkInputDialog(title="Sudo Password", text="Enter your sudo password:")
+            dialog = CTkInputDialog(
+                title="Sudo Password", text="Enter your sudo password:"
+            )
             password = dialog.get_input()
             if password:
                 self.service.set_sudo_password(password)
@@ -707,12 +824,12 @@ class OnionHosterGUI:
         # Update Tor Browser status
         if deps["tor_browser"]:
             self.browser_status_label.configure(
-            text="Tor Browser: ✓ Installed", text_color=THEME_COLORS["success"]
+                text="Tor Browser: ✓ Installed", text_color=THEME_COLORS["success"]
             )
             self.browser_install_btn.configure(state="disabled")
         else:
             self.browser_status_label.configure(
-            text="Tor Browser: ✗ Not Installed", text_color=THEME_COLORS["warning"]
+                text="Tor Browser: ✗ Not Installed", text_color=THEME_COLORS["warning"]
             )
             self.browser_install_btn.configure(state="normal")
 
@@ -763,18 +880,48 @@ class OnionHosterGUI:
     def start_service(self):
         """Start the onion service."""
         directory = self.site_directory_var.get()
-        if not directory:
+        method = self.hosting_method_var.get()
+
+        # For nginx method, directory is required
+        if method == HOSTING_METHOD_NGINX and not directory:
             messagebox.showwarning(
                 "No Directory", "Please select a site directory first."
             )
             return
 
+        # For custom port method, validate port
+        if method == HOSTING_METHOD_CUSTOM_PORT:
+            custom_port_str = self.custom_port_var.get()
+            if not custom_port_str:
+                messagebox.showwarning(
+                    "No Custom Port",
+                    "Please enter your local website port in the Configuration tab.",
+                )
+                return
+
+            try:
+                custom_port = int(custom_port_str)
+                valid, msg = self.service.validate_port(custom_port)
+                if not valid:
+                    messagebox.showerror("Invalid Port", msg)
+                    return
+            except ValueError:
+                messagebox.showerror("Invalid Port", "Port must be a number.")
+                return
+
         # Check dependencies
         deps = self.service.check_dependencies()
-        if not deps["tor"] or not deps["nginx"]:
+        if not deps["tor"]:
             messagebox.showerror(
                 "Missing Dependencies",
-                "Tor and Nginx must be installed. Please install them from the Dependencies tab.",
+                "Tor must be installed. Please install it from the Dependencies tab.",
+            )
+            return
+
+        if method == HOSTING_METHOD_NGINX and not deps["nginx"]:
+            messagebox.showerror(
+                "Missing Dependencies",
+                "Nginx must be installed for the Nginx hosting method. Please install it from the Dependencies tab or switch to Custom Port method.",
             )
             return
 
@@ -788,8 +935,29 @@ class OnionHosterGUI:
         self.log("Starting onion service...")
         self.set_status("Starting service...")
 
+        # Disable start button while starting
+        self.start_btn.configure(state="disabled")
+
+        # Show and reset progress bar
+        self.progress_frame.grid()
+        self.progress_bar.set(0)
+        self.progress_label.configure(text="Bootstrap Progress: Starting...")
+        self.progress_percentage.configure(text="0%")
+
+        def bootstrap_progress_callback(progress, status):
+            """Update progress bar in GUI thread."""
+
+            def update_ui():
+                self.progress_bar.set(progress / 100.0)
+                self.progress_percentage.configure(text=f"{progress}%")
+                self.progress_label.configure(text=f"Bootstrap Progress: {status[:60]}")
+
+            self.root.after(0, update_ui)
+
         def start_thread():
-            success, message, onion_address = self.service.start_service(directory)
+            success, message, onion_address = self.service.start_service(
+                directory, progress_callback=bootstrap_progress_callback
+            )
 
             self.root.after(
                 0, lambda: self._start_service_callback(success, message, onion_address)
@@ -810,10 +978,18 @@ class OnionHosterGUI:
                 )
             self.update_service_status(True)
             self.set_status("Service running")
+            # Set progress to 100% on success
+            self.progress_bar.set(1.0)
+            self.progress_percentage.configure(text="100%")
+            self.progress_label.configure(text="Bootstrap Progress: Complete!")
         else:
             self.log(f"✗ {message}")
             messagebox.showerror("Error", f"Failed to start service:\n{message}")
             self.set_status("Failed to start service")
+            # Re-enable start button on failure
+            self.start_btn.configure(state="normal")
+            # Hide progress bar on failure
+            self.progress_frame.grid_remove()
 
     def stop_service(self):
         """Stop the onion service."""
@@ -863,6 +1039,7 @@ class OnionHosterGUI:
 
         self.log("Restarting onion service...")
         self.set_status("Restarting service...")
+
         def restart_thread():
             # Stop
             success, message = self.service.stop_service()
@@ -961,18 +1138,66 @@ class OnionHosterGUI:
             self.set_status(f"Failed to install {package}")
 
     def save_port_config(self):
-        """Save nginx port configuration."""
+        """Save port configuration for both nginx and custom port."""
         try:
-            port = int(self.port_var.get())
-            if port < 1024 or port > 65535:
-                raise ValueError("Port must be between 1024 and 65535")
+            # Save nginx port
+            nginx_port = int(self.port_var.get())
+            valid, msg = self.service.validate_port(nginx_port)
+            if not valid:
+                messagebox.showerror("Invalid Nginx Port", msg)
+                return
 
-            self.config.set("nginx_port", port)
-            self.log(f"✓ Nginx port set to {port}")
-            self.set_status(f"Port configuration saved: {port}")
-            messagebox.showinfo("Success", f"Nginx port set to {port}")
+            self.config.set("nginx_port", nginx_port)
+
+            # Save custom port if provided
+            custom_port_str = self.custom_port_var.get().strip()
+            if custom_port_str:
+                try:
+                    custom_port = int(custom_port_str)
+                    valid, msg = self.service.validate_port(custom_port)
+                    if not valid:
+                        messagebox.showerror("Invalid Custom Port", msg)
+                        return
+                    self.config.set("custom_port", custom_port)
+                except ValueError:
+                    messagebox.showerror(
+                        "Invalid Custom Port", "Custom port must be a number."
+                    )
+                    return
+            else:
+                # Clear custom port if empty
+                self.config.set("custom_port", None)
+
+            # Save hosting method
+            method = self.hosting_method_var.get()
+            self.config.set("hosting_method", method)
+
+            self.log(f"✓ Port configuration saved")
+            self.set_status("Port configuration saved")
+            messagebox.showinfo("Success", "Port configuration saved successfully!")
         except ValueError as e:
             messagebox.showerror("Invalid Port", str(e))
+
+    def on_hosting_method_changed(self):
+        """Handle hosting method change."""
+        method = self.hosting_method_var.get()
+
+        if method == HOSTING_METHOD_NGINX:
+            # Nginx method selected
+            self.nginx_port_entry.configure(state="normal")
+            self.custom_port_entry.configure(state="disabled")
+            self.method_warning_label.configure(
+                text="⚠️ Nginx method: Only static websites will work (no PHP, no server-side processing)",
+                text_color=THEME_COLORS["warning"],
+            )
+        else:
+            # Custom port method selected
+            self.nginx_port_entry.configure(state="disabled")
+            self.custom_port_entry.configure(state="normal")
+            self.method_warning_label.configure(
+                text="✓ Custom Port method: Full support for PHP, databases, and dynamic content",
+                text_color=THEME_COLORS["success"],
+            )
 
     def toggle_autostart(self):
         """Toggle autostart setting."""
@@ -1016,6 +1241,11 @@ class OnionHosterGUI:
                 self.site_directory_var.set(self.config.get("site_directory", ""))
                 self.onion_address_var.set(self.config.get("onion_address", ""))
                 self.port_var.set(str(self.config.get("nginx_port", 8080)))
+                self.hosting_method_var.set(
+                    self.config.get("hosting_method", HOSTING_METHOD_NGINX)
+                )
+                self.custom_port_var.set(str(self.config.get("custom_port", "")))
+                self.on_hosting_method_changed()
             else:
                 messagebox.showerror("Error", "Failed to import configuration.")
 

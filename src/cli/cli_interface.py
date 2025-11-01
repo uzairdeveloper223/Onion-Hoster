@@ -19,7 +19,14 @@ import logging
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.constants import CLI_BANNER, VERSION, AUTHOR, GITHUB_USERNAME
+from core.constants import (
+    CLI_BANNER,
+    VERSION,
+    AUTHOR,
+    GITHUB_USERNAME,
+    HOSTING_METHOD_NGINX,
+    HOSTING_METHOD_CUSTOM_PORT,
+)
 from core.system_detector import get_system_detector
 from core.config_manager import get_config_manager
 from core.onion_service import OnionServiceManager
@@ -220,31 +227,89 @@ class OnionHosterCLI(cmd.Cmd):
     def do_start(self, arg):
         """
         Start the onion service.
-        Usage: start <directory>
+        Usage: start <directory>  (for nginx method)
+        Usage: start              (for custom port method, no directory needed)
         """
-        if not arg:
-            # Use configured directory if available
-            site_dir = self.config.get("site_directory")
-            if not site_dir:
-                self.print_error("Please specify the site directory")
-                print("Usage: start <directory>")
-                return
+        hosting_method = self.config.get("hosting_method", HOSTING_METHOD_NGINX)
+
+        if hosting_method == HOSTING_METHOD_NGINX:
+            # Nginx method requires directory
+            if not arg:
+                site_dir = self.config.get("site_directory")
+                if not site_dir:
+                    self.print_error("Please specify the site directory")
+                    print("Usage: start <directory>")
+                    return
+            else:
+                site_dir = arg.strip()
         else:
-            site_dir = arg.strip()
+            # Custom port method
+            custom_port = self.config.get("custom_port")
+            if not custom_port:
+                self.print_error(
+                    "Custom port not configured. Use: config set custom_port <port>"
+                )
+                return
+
+            # Validate custom port
+            valid, msg = self.service.validate_port(custom_port)
+            if not valid:
+                self.print_error(f"Invalid custom port: {msg}")
+                return
+
+            # For custom port method, directory can be empty or specified
+            site_dir = arg.strip() if arg else self.config.get("site_directory", "")
+            self.print_info(f"Using custom port method with port: {custom_port}")
 
         # Check dependencies
         deps = self.service.check_dependencies()
         if not deps["tor"]:
             self.print_error("Tor is not installed. Install it with: install tor")
             return
-        if not deps["nginx"]:
+
+        # Only require nginx for nginx method
+        if hosting_method == HOSTING_METHOD_NGINX and not deps["nginx"]:
             self.print_error("Nginx is not installed. Install it with: install nginx")
             return
 
-        self.print_info(f"Starting onion service for: {site_dir}")
+        self.print_info(f"Starting onion service...")
         self.print_info("This may take a moment...")
 
-        success, message, onion_address = self.service.start_service(site_dir)
+        # Progress bar for bootstrap
+        import sys
+
+        last_progress = 0
+
+        def bootstrap_progress_callback(progress, status):
+            nonlocal last_progress
+            if progress > last_progress:
+                last_progress = progress
+                # Create progress bar
+                bar_length = 40
+                filled = int(bar_length * progress / 100)
+                bar = "█" * filled + "░" * (bar_length - filled)
+
+                # Color based on progress
+                if progress < 30:
+                    color = Colors.WARNING
+                elif progress < 70:
+                    color = Colors.OKCYAN
+                else:
+                    color = Colors.OKGREEN
+
+                # Print progress bar
+                sys.stdout.write(
+                    f"\r{color}[{bar}] {progress}%{Colors.ENDC} - {status[:50]}"
+                )
+                sys.stdout.flush()
+
+                if progress == 100:
+                    print()  # New line after completion
+
+        success, message, onion_address = self.service.start_service(
+            site_dir, progress_callback=bootstrap_progress_callback
+        )
+        print()  # Ensure we're on a new line
 
         if success:
             self.print_success(message)
@@ -295,12 +360,53 @@ class OnionHosterCLI(cmd.Cmd):
             self.print_error("No site directory configured. Use: start <directory>")
             return
 
-        success, message, onion_address = self.service.start_service(site_dir)
+        # Progress bar for bootstrap
+        import sys
+
+        last_progress = 0
+
+        def bootstrap_progress_callback(progress, status):
+            nonlocal last_progress
+            if progress > last_progress:
+                last_progress = progress
+                # Create progress bar
+                bar_length = 40
+                filled = int(bar_length * progress / 100)
+                bar = "█" * filled + "░" * (bar_length - filled)
+
+                # Color based on progress
+                if progress < 30:
+                    color = Colors.WARNING
+                elif progress < 70:
+                    color = Colors.OKCYAN
+                else:
+                    color = Colors.OKGREEN
+
+                # Print progress bar
+                sys.stdout.write(
+                    f"\r{color}[{bar}] {progress}%{Colors.ENDC} - {status[:50]}"
+                )
+                sys.stdout.flush()
+
+                if progress == 100:
+                    print()  # New line after completion
+
+        success, message, onion_address = self.service.start_service(
+            site_dir, progress_callback=bootstrap_progress_callback
+        )
+        print()  # Ensure we're on a new line
 
         if success:
             self.print_success(message)
             if onion_address:
                 print(f"\n{Colors.OKGREEN}Onion address: {onion_address}{Colors.ENDC}")
+
+                # Try to copy to clipboard
+                try:
+                    pyperclip.copy(onion_address)
+                    self.print_success("Onion address copied to clipboard!")
+                except:
+                    self.print_info("Tip: Copy the address above to share your site")
         else:
             self.print_error(message)
 
@@ -380,7 +486,9 @@ class OnionHosterCLI(cmd.Cmd):
 
             print(f"\n{Colors.BOLD}Service:{Colors.ENDC}")
             print(f"  Site Directory: {config.get('site_directory')}")
+            print(f"  Hosting Method: {config.get('hosting_method')}")
             print(f"  Nginx Port: {config.get('nginx_port')}")
+            print(f"  Custom Port: {config.get('custom_port')}")
             print(f"  Onion Address: {config.get('onion_address')}")
             print(f"  Service Running: {config.get('service_running')}")
 
@@ -410,6 +518,51 @@ class OnionHosterCLI(cmd.Cmd):
             key = args[1]
             value = " ".join(args[2:])
 
+            # Special handling for hosting_method
+            if key == "hosting_method":
+                if value not in [HOSTING_METHOD_NGINX, HOSTING_METHOD_CUSTOM_PORT]:
+                    self.print_error(
+                        f"Invalid hosting method. Use '{HOSTING_METHOD_NGINX}' or '{HOSTING_METHOD_CUSTOM_PORT}'"
+                    )
+                    return
+                success, msg = self.service.set_hosting_method(value)
+                if success:
+                    self.print_success(msg)
+                    if value == HOSTING_METHOD_NGINX:
+                        self.print_info(
+                            "⚠️ Nginx method: Only static websites will work (no PHP, no server-side processing)"
+                        )
+                    else:
+                        self.print_info(
+                            "✓ Custom Port method: Full support for PHP, databases, and dynamic content"
+                        )
+                        self.print_info(
+                            "Don't forget to set custom_port with: config set custom_port <port>"
+                        )
+                else:
+                    self.print_error(msg)
+                return
+
+            # Special handling for custom_port
+            if key == "custom_port":
+                try:
+                    port = int(value)
+                    valid, msg = self.service.validate_port(port)
+                    if not valid:
+                        self.print_error(f"Invalid port: {msg}")
+                        return
+                    success, msg = self.service.set_custom_port(port)
+                    if success:
+                        self.print_success(msg)
+                        self.print_info(
+                            "⚠️ Remember to set hosting_method to 'custom_port' with: config set hosting_method custom_port"
+                        )
+                    else:
+                        self.print_error(msg)
+                except ValueError:
+                    self.print_error("Port must be a number")
+                return
+
             # Try to parse as int or bool
             if value.isdigit():
                 value = int(value)
@@ -425,6 +578,100 @@ class OnionHosterCLI(cmd.Cmd):
         else:
             self.print_error(f"Unknown config command: {args[0]}")
             print("Usage: config [get|set|show] [key] [value]")
+
+    def do_method(self, arg):
+        """
+        Set or view hosting method.
+        Usage: method [nginx|custom_port] [port]
+
+        Examples:
+          method              - Show current method
+          method nginx        - Switch to Nginx method (static sites only)
+          method custom_port 3000 - Switch to custom port method with port 3000
+        """
+        args = arg.split()
+
+        if not args:
+            # Show current method
+            current_method = self.config.get("hosting_method", HOSTING_METHOD_NGINX)
+            custom_port = self.config.get("custom_port")
+
+            self.print_header("=== Hosting Method ===")
+            print(f"\n{Colors.BOLD}Current Method:{Colors.ENDC} {current_method}")
+
+            if current_method == HOSTING_METHOD_NGINX:
+                print(f"\n{Colors.WARNING}Nginx Method:{Colors.ENDC}")
+                print("  ⚠️ Only static websites will work")
+                print("  • HTML, CSS, JavaScript, images")
+                print("  • No PHP, no server-side processing, no databases")
+                print(
+                    f"\n{Colors.BOLD}Nginx Port:{Colors.ENDC} {self.config.get('nginx_port', 8080)}"
+                )
+            else:
+                print(f"\n{Colors.OKGREEN}Custom Port Method:{Colors.ENDC}")
+                print("  ✓ Full support for dynamic content")
+                print("  • PHP, Python, Node.js, etc.")
+                print("  • Databases and server-side processing")
+                if custom_port:
+                    print(f"\n{Colors.BOLD}Custom Port:{Colors.ENDC} {custom_port}")
+                else:
+                    self.print_warning(
+                        "⚠️ Custom port not set! Use: method custom_port <port>"
+                    )
+
+            return
+
+        method = args[0].lower()
+
+        if method == "nginx":
+            success, msg = self.service.set_hosting_method(HOSTING_METHOD_NGINX)
+            if success:
+                self.print_success(msg)
+                self.print_info(
+                    "⚠️ Only static websites will work (no PHP, no server-side processing)"
+                )
+            else:
+                self.print_error(msg)
+
+        elif method == "custom_port" or method == "custom":
+            if len(args) < 2:
+                self.print_error("Please specify the port number")
+                print("Usage: method custom_port <port>")
+                return
+
+            try:
+                port = int(args[1])
+                valid, msg = self.service.validate_port(port)
+                if not valid:
+                    self.print_error(f"Invalid port: {msg}")
+                    return
+
+                # Set custom port
+                success, msg = self.service.set_custom_port(port)
+                if not success:
+                    self.print_error(msg)
+                    return
+
+                # Set hosting method
+                success, msg = self.service.set_hosting_method(
+                    HOSTING_METHOD_CUSTOM_PORT
+                )
+                if success:
+                    self.print_success(f"Hosting method set to custom port: {port}")
+                    self.print_info(
+                        "✓ Full support for PHP, databases, and dynamic content"
+                    )
+                    self.print_info(
+                        f"Make sure your local website is running on port {port}"
+                    )
+                else:
+                    self.print_error(msg)
+            except ValueError:
+                self.print_error("Port must be a number")
+
+        else:
+            self.print_error(f"Unknown method: {method}")
+            print("Usage: method [nginx|custom_port] [port]")
 
     def do_update(self, arg):
         """

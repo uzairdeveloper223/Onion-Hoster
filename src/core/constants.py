@@ -72,6 +72,7 @@ NGINX_CONFIG_TEMPLATE = """server {{
     root {root_dir};
     index index.html index.htm;
 
+    # Static files
     location / {{
         try_files $uri $uri/ =404;
     }}
@@ -85,8 +86,23 @@ NGINX_CONFIG_TEMPLATE = """server {{
 # Tor Configuration
 TOR_CONFIG_TEMPLATE = """# Onion Hoster Hidden Service Configuration
 HiddenServiceDir {hidden_service_dir}
-HiddenServicePort 80 127.0.0.1:{nginx_port}
+HiddenServicePort 80 127.0.0.1:{target_port}
 """
+
+# Hosting Methods
+HOSTING_METHOD_NGINX = "nginx"
+HOSTING_METHOD_CUSTOM_PORT = "custom_port"
+
+# Restricted Ports (Tor-related and system reserved)
+RESTRICTED_PORTS = [
+    9050,  # Tor SOCKS proxy
+    9051,  # Tor control port
+    9150,  # Tor Browser SOCKS proxy
+    9151,  # Tor Browser control port
+]
+
+# Well-known ports that should be avoided
+COMMON_RESERVED_PORTS = list(range(1, 1024))  # Requires root/sudo
 
 # Platform-specific paths
 PLATFORM_PATHS = {
@@ -169,7 +185,7 @@ INSTALL_COMMANDS = {
 # Service Management Commands
 SERVICE_COMMANDS = {
     "debian": {
-        "tor_start": "sudo -S systemctl start tor@default",
+        "tor_start": "sudo -u debian-tor tor -f /etc/tor/torrc",
         "tor_stop": "sudo -S systemctl stop tor@default",
         "tor_restart": "sudo -S systemctl restart tor@default",
         "tor_enable": "sudo -S systemctl enable tor@default",
@@ -230,10 +246,10 @@ SERVICE_COMMANDS = {
 }
 
 # Requirements for index file detection
-VALID_INDEX_FILES = ["index.html", "index.htm", "index.php"]
+VALID_INDEX_FILES = ["index.html", "index.htm", "index"]
 
 # GUI Configuration
-GUI_WINDOW_SIZE = "900x700"
+GUI_WINDOW_SIZE = "800x1100"
 GUI_MIN_WINDOW_SIZE = (800, 600)
 GUI_FONT_FAMILY = (
     "Segoe UI"
@@ -254,10 +270,10 @@ GUI_FONT_SIZES = {
 CLI_PROMPT = "onion-hoster> "
 CLI_BANNER = f"""
 ╔══════════════════════════════════════════════════════════════╗
-║                       ONION HOSTER v{VERSION}                      ║
-║        Host your static websites on the Tor Network         ║
+║                       ONION HOSTER v{VERSION}                    ║
+║        Host your static websites on the Tor Network          ║
 ║                                                              ║
-║              Author: {AUTHOR}                    ║
+║              Author: {AUTHOR}                         ║
 ║              GitHub: github.com/{GITHUB_USERNAME}            ║
 ╚══════════════════════════════════════════════════════════════╝
 """

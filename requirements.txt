@@ -21,3 +21,5 @@ python-dotenv>=1.0.0
 
 # Optional: For enhanced features
 colorama>=0.4.6
+
+watchdog

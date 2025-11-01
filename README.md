@@ -3,28 +3,36 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-purple)](https://github.com/uzairdeveloper223/Onion-Hoster)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue)](https://www.python.org/)
+[![Termux](https://img.shields.io/badge/Termux-Supported-green)](TERMUX_README.md)
 
-**A cross-platform utility tool to host static websites on the Tor Network with ease.**
+**A cross-platform utility tool to host websites (static & dynamic) on the Tor Network with ease.**
 
-Onion Hoster simplifies the process of hosting your static HTML, CSS, and JavaScript files as a hidden service on the Tor network. With both GUI and CLI interfaces, it's perfect for developers, privacy enthusiasts, and anyone wanting to share content anonymously.
+> 📱 **Termux Users**: Looking for the Android/Termux version? **[Click here for Termux Edition](TERMUX_README.md)** - No Python required, pure bash implementation!
+
+Onion Hoster simplifies the process of hosting your websites (both static and dynamic) as a hidden service on the Tor network. With both GUI and CLI interfaces, plus a dedicated Termux edition, it's perfect for developers, privacy enthusiasts, and anyone wanting to share content anonymously.
 
 **NEW:** Now with manual Tor startup and real-time bootstrap progress monitoring! Watch your service come online with live feedback from 0% to 100%.
 
 ## ✨ Features
 
-- 🖥️ **Dual Interface**: Beautiful GUI for desktop and powerful CLI for terminal/Termux
-- 🌍 **Cross-Platform**: Works on Linux (Debian, Arch, RedHat-based), Windows, macOS, and Termux
-- 🎨 **Material You Design**: Dark theme with Tor Browser-inspired purple accents
+- 🖥️ **Dual Interface**: Beautiful GUI for desktop and powerful CLI for terminal
+- 🌍 **Cross-Platform**: Works on Linux (Debian, Arch, RedHat-based), Windows, macOS
+- 📱 **Termux Edition**: Dedicated bash script for Android users ([Get it here](TERMUX_README.md))
+- 🚀 **Two Hosting Methods**: 
+  - **Nginx Method** - Static websites (HTML, CSS, JS, images)
+  - **Custom Port Method** - Dynamic content (PHP, Node.js, Python, databases)
+- 🎨 **Material You Design**: Dark theme with Tor Browser-inspired purple accents (GUI)
 - 🔒 **Privacy-First**: Host your content anonymously on the Tor network
 - 🚀 **Auto-Detection**: Automatically detects OS, desktop environment, and dependencies
 - 📦 **Easy Installation**: Built-in installers for Tor, Nginx, and Tor Browser
-- 🔄 **Auto-Update**: Check and apply updates with a single click
+- 🔄 **Auto-Update**: Check and apply updates with a single click (Main app)
 - 📋 **Clipboard Integration**: Copy your .onion address instantly
 - 🌐 **One-Click Browser**: Open your site in Tor Browser directly from the app
 - ⚙️ **Configuration Management**: Export, import, and manage your settings easily
 - 📊 **Bootstrap Progress**: Real-time Tor bootstrap monitoring (0% → 100%)
 - ⚡ **Manual Tor Startup**: Direct Tor control with live output and status
 - 🎯 **Smart Permissions**: Automatic permission fixes for hidden service directories
+- 🔐 **Port Validation**: Automatic restriction of Tor-reserved ports (9050, 9051, etc.)
 
 ## 📸 Screenshots
 ![Image1](https://raw.githubusercontent.com/uzairdeveloper223/Onion-Hoster/main/assets/1.png)
@@ -43,7 +51,41 @@ Onion Hoster simplifies the process of hosting your static HTML, CSS, and JavaSc
 ### CLI Mode
 *Powerful terminal interface with full functionality*
 
-## 🚀 Quick Start
+## 📱 Termux Edition (Android Users)
+
+**Running on Android/Termux? Use our dedicated bash script version!**
+
+No Python or complex dependencies needed - just pure bash. [**Click here for full Termux guide**](TERMUX_README.md)
+
+### Quick Termux Install
+
+```bash
+# One-line installer
+pkg update && pkg install git -y && git clone https://github.com/uzairdeveloper223/Onion-Hoster.git && cd Onion-Hoster && chmod +x termux-install.sh && ./termux-install.sh
+```
+
+Or manual installation:
+```bash
+pkg update && pkg install tor nginx git -y
+git clone https://github.com/uzairdeveloper223/Onion-Hoster.git
+cd Onion-Hoster
+chmod +x termux.sh
+./termux.sh
+```
+
+**Features:**
+- ✅ No Python dependencies
+- ✅ Pure bash implementation
+- ✅ Full CLI with interactive menu
+- ✅ Support for both static and dynamic content
+- ✅ Nginx method and Custom Port method
+- ✅ Real-time service monitoring
+
+[**📖 Read Full Termux Documentation**](TERMUX_README.md)
+
+---
+
+## 🚀 Quick Start (Desktop/Linux/Windows/macOS)
 
 ### Prerequisites
 
@@ -106,6 +148,145 @@ restart             # Restart the service
 address             # Show your onion address
 open                # Open site in Tor Browser
 validate <dir>      # Validate a directory
+config              # View/modify configuration
+method              # Set hosting method
+```
+
+## 🎯 Hosting Methods
+
+Onion Hoster now supports two hosting methods to fit your needs:
+
+### 📄 Nginx Method (Static Sites Only)
+
+**Best for:** HTML, CSS, JavaScript, images, fonts, static content
+
+**How it works:**
+- Files are served directly through Nginx
+- Your site directory is copied to Nginx's web root
+- Perfect for simple websites and portfolios
+
+**Limitations:**
+- ❌ No PHP support
+- ❌ No server-side processing
+- ❌ No database connections
+- ❌ No backend languages
+
+**Setup:**
+```bash
+# GUI: Select "Use Nginx" in Configuration tab
+# CLI:
+./onion-host --cli
+> method nginx
+> config set site_directory /path/to/your/website
+> start
+```
+
+**Warning:** ⚠️ Only static websites will work with this method. No PHP, no server-side processing.
+
+---
+
+### 🚀 Custom Port Method (Full Support)
+
+**Best for:** Dynamic websites, PHP applications, Node.js, Python, databases
+
+**How it works:**
+- Tor forwards traffic to your specified local port
+- Your own web server handles requests
+- Full support for any web technology
+
+**Supports:**
+- ✅ PHP applications (WordPress, Laravel, etc.)
+- ✅ Node.js servers (Express, Next.js, etc.)
+- ✅ Python web apps (Flask, Django, FastAPI)
+- ✅ Databases (MySQL, PostgreSQL, MongoDB)
+- ✅ Any web framework or server
+
+**Setup:**
+
+1. Start your local web server (example with PHP):
+```bash
+cd /path/to/your/php-app
+php -S 127.0.0.1:8000
+```
+
+2. Configure Onion Hoster:
+```bash
+# GUI: 
+# - Go to Configuration tab
+# - Select "Use Custom Port"
+# - Enter your port (8000)
+# - Click "Save Port Configuration"
+# - Click "Start Service"
+
+# CLI:
+./onion-host --cli
+> method custom_port 8000
+> start
+```
+
+**Note:** ✓ Make sure your local web server is running on the specified port before starting the service.
+
+---
+
+### 🔐 Port Restrictions
+
+The following ports are **forbidden** as they're reserved for Tor:
+
+- **9050** - Tor SOCKS proxy (cannot be used)
+- **9051** - Tor control port (cannot be used)
+- **9150** - Tor Browser SOCKS proxy (cannot be used)
+- **9151** - Tor Browser control port (cannot be used)
+
+**Additional restrictions:**
+- Ports 1-1023 are system reserved and require root privileges (not recommended)
+- Recommended: Use ports between **1024-65535**
+
+---
+
+### Configuration Examples
+
+**Example 1: Static HTML Website (Nginx)**
+```bash
+./onion-host --cli
+> method nginx
+> config set site_directory ~/my-website
+> start
+```
+
+**Example 2: PHP Application (Custom Port)**
+```bash
+# Terminal 1: Start PHP server
+cd ~/my-php-app
+php -S 127.0.0.1:3000
+
+# Terminal 2: Configure Onion Hoster
+./onion-host --cli
+> method custom_port 3000
+> start
+```
+
+**Example 3: Node.js Application (Custom Port)**
+```bash
+# Terminal 1: Start Node server on port 5000
+cd ~/my-node-app
+node server.js
+
+# Terminal 2: Configure Onion Hoster
+./onion-host --cli
+> method custom_port 5000
+> start
+```
+
+**Example 4: Python Flask Application (Custom Port)**
+```bash
+# Terminal 1: Start Flask on port 8080
+cd ~/my-flask-app
+flask run --host=127.0.0.1 --port=8080
+
+# Terminal 2: Configure Onion Hoster
+./onion-host --cli
+> method custom_port 8080
+> start
 config show         # Show configuration
 update check        # Check for updates
 help                # Show all commands

@@ -18,10 +18,17 @@ import threading
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, Callable
 import shutil
+from .constants import (
+    RESTRICTED_PORTS,
+    COMMON_RESERVED_PORTS,
+    HOSTING_METHOD_NGINX,
+    HOSTING_METHOD_CUSTOM_PORT,
+)
 
 try:
     from watchdog.observers import Observer
     from watchdog.events import FileSystemEventHandler
+
     WATCHDOG_AVAILABLE = True
 except ImportError:
     WATCHDOG_AVAILABLE = False
@@ -66,6 +73,92 @@ class OnionServiceManager:
     def set_sudo_password(self, password: str):
         """Set the sudo password for privileged commands."""
         self._sudo_password = password
+
+    def validate_port(self, port: int) -> Tuple[bool, str]:
+        """
+        Validate if a port is safe to use.
+
+        Args:
+            port: Port number to validate
+
+        Returns:
+            Tuple of (valid: bool, message: str)
+        """
+        # Check if port is in valid range
+        if not isinstance(port, int) or port < 1 or port > 65535:
+            return False, "Port must be between 1 and 65535"
+
+        # Check if port is Tor-related (strictly forbidden)
+        if port in RESTRICTED_PORTS:
+            return False, f"Port {port} is reserved for Tor services and cannot be used"
+
+        # Warn about well-known ports (1-1023)
+        if port in COMMON_RESERVED_PORTS:
+            return (
+                False,
+                f"Port {port} is a system reserved port (1-1023). Please choose a port above 1024",
+            )
+
+        return True, "Port is valid"
+
+    def set_hosting_method(self, method: str) -> Tuple[bool, str]:
+        """
+        Set the hosting method (nginx or custom_port).
+
+        Args:
+            method: Either 'nginx' or 'custom_port'
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        if method not in [HOSTING_METHOD_NGINX, HOSTING_METHOD_CUSTOM_PORT]:
+            return (
+                False,
+                f"Invalid hosting method. Use '{HOSTING_METHOD_NGINX}' or '{HOSTING_METHOD_CUSTOM_PORT}'",
+            )
+
+        self.config.set("hosting_method", method)
+        return True, f"Hosting method set to: {method}"
+
+    def set_custom_port(self, port: int) -> Tuple[bool, str]:
+        """
+        Set and validate custom port for direct port forwarding.
+
+        Args:
+            port: Custom port number
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        valid, msg = self.validate_port(port)
+        if not valid:
+            return False, msg
+
+        self.config.set("custom_port", port)
+        return True, f"Custom port set to: {port}"
+
+    def get_hosting_method(self) -> str:
+        """Get the current hosting method."""
+        return self.config.get("hosting_method", HOSTING_METHOD_NGINX)
+
+    def get_target_port(self) -> int:
+        """
+        Get the target port based on hosting method.
+
+        Returns:
+            Port number to use for Tor hidden service
+        """
+        method = self.get_hosting_method()
+
+        if method == HOSTING_METHOD_CUSTOM_PORT:
+            custom_port = self.config.get("custom_port")
+            if custom_port:
+                return custom_port
+            # Fallback to nginx port if custom port not set
+            return self.config.get("nginx_port", 8080)
+        else:
+            # Nginx method
+            return self.config.get("nginx_port", 8080)
 
     def _sync_site_files(self):
         """Sync site files from user directory to nginx root."""
@@ -471,20 +564,25 @@ class OnionServiceManager:
             self.logger.error(f"Error creating nginx config: {e}")
             return False, f"Error: {str(e)}"
 
-    def configure_tor_hidden_service(self, nginx_port: int = None) -> Tuple[bool, str]:
+    def configure_tor_hidden_service(self, target_port: int = None) -> Tuple[bool, str]:
         """
         Configure Tor hidden service.
 
         Args:
-            nginx_port: Nginx port to forward to
+            target_port: Target port to forward to (nginx or custom)
 
         Returns:
             Tuple of (success: bool, message: str)
         """
         from .constants import TOR_CONFIG_TEMPLATE
 
-        if nginx_port is None:
-            nginx_port = self.config.get("nginx_port", 8080)
+        if target_port is None:
+            target_port = self.get_target_port()
+
+        # Validate the port
+        valid, msg = self.validate_port(target_port)
+        if not valid:
+            return False, f"Invalid target port: {msg}"
 
         if not self.platform_paths:
             return False, "Platform paths not available."
@@ -559,16 +657,92 @@ class OnionServiceManager:
                 else:
                     existing_config = ""
 
-            # Check if hidden service already configured
-            if (
-                "HiddenServiceDir" in existing_config
-                and str(hidden_service_dir) in existing_config
-            ):
-                self.logger.info("Hidden service already configured")
+            # Clean up any commented-out HiddenService examples that might conflict
+            lines = existing_config.split("\n")
+            cleaned_lines = []
+            in_example_section = False
+
+            for line in lines:
+                # Skip commented examples in the hidden service section
+                if "This section is just for location-hidden services" in line:
+                    in_example_section = True
+                elif "This section is just for relays" in line:
+                    in_example_section = False
+
+                # Keep the line unless it's a commented HiddenService in example section
+                if in_example_section and line.strip().startswith("#HiddenService"):
+                    continue  # Skip commented examples
+                else:
+                    cleaned_lines.append(line)
+
+            existing_config = "\n".join(cleaned_lines)
+
+            # Check if our hidden service is already configured (uncommented)
+            our_hs_configured = False
+            our_hs_start_line = -1
+
+            for i, line in enumerate(cleaned_lines):
+                if line.strip() and not line.strip().startswith("#"):
+                    if (
+                        f"HiddenServiceDir {hidden_service_dir}" in line
+                        or f"HiddenServiceDir {str(hidden_service_dir)}" in line
+                    ):
+                        our_hs_configured = True
+                        our_hs_start_line = i
+                        break
+
+            if our_hs_configured:
+                self.logger.info("Hidden service already configured, updating port...")
+                # Update existing configuration with new port
+                new_lines = []
+                skip_until_next_hs = False
+
+                for i, line in enumerate(cleaned_lines):
+                    if i == our_hs_start_line:
+                        # Found our HiddenServiceDir, replace it and its port
+                        new_lines.append(f"HiddenServiceDir {hidden_service_dir}")
+                        new_lines.append(
+                            f"HiddenServicePort 80 127.0.0.1:{target_port}"
+                        )
+                        skip_until_next_hs = True
+                    elif skip_until_next_hs:
+                        # Skip old HiddenServicePort lines until we hit another section
+                        if line.strip().startswith("HiddenServiceDir") or (
+                            line.strip()
+                            and not line.strip().startswith("HiddenService")
+                        ):
+                            skip_until_next_hs = False
+                            new_lines.append(line)
+                        # else skip this line (old port config)
+                    else:
+                        new_lines.append(line)
+
+                # Write updated config
+                import tempfile
+
+                with tempfile.NamedTemporaryFile(
+                    mode="w", delete=False, suffix=".tor"
+                ) as f:
+                    f.write("\n".join(new_lines))
+                    temp_file = f.name
+
+                if self.system.os_type == "windows" or self.system.is_termux:
+                    with open(tor_config_path, "w") as f:
+                        f.write("\n".join(new_lines))
+                else:
+                    cmd = f"cat {temp_file} > {tor_config_path}"
+                    result = self._run_privileged_command(f"sudo -S sh -c '{cmd}'")
+                    if result.returncode != 0:
+                        os.unlink(temp_file)
+                        return False, f"Failed to update tor config: {result.stderr}"
+
+                os.unlink(temp_file)
+                self.logger.info(f"Updated Tor hidden service port to {target_port}")
             else:
-                # Add hidden service configuration
-                hidden_service_config = TOR_CONFIG_TEMPLATE.format(
-                    hidden_service_dir=hidden_service_dir, nginx_port=nginx_port
+                self.logger.info("Adding new hidden service configuration...")
+                # Add hidden service configuration at the end
+                hidden_service_config = "\n" + TOR_CONFIG_TEMPLATE.format(
+                    hidden_service_dir=hidden_service_dir, target_port=target_port
                 )
 
                 # Append to tor config using privileged command
@@ -704,6 +878,166 @@ class OnionServiceManager:
             self.logger.error(f"Error restarting Nginx: {e}")
             return False, f"Error: {str(e)}"
 
+    def _is_safe_to_kill(self, pid: int) -> bool:
+        """
+        Check if it's safe to kill a process.
+        Prevents killing system-critical processes.
+
+        Args:
+            pid: Process ID to check
+
+        Returns:
+            bool: True if safe to kill, False otherwise
+        """
+        try:
+            # Never kill PID 1 (init/systemd) or other critical PIDs
+            if pid <= 10:
+                self.logger.error(f"Refusing to kill system process PID {pid}")
+                return False
+
+            # Check if it's actually a Tor process
+            if self.system.os_type != "windows":
+                check_cmd = f"ps -p {pid} -o comm="
+                result = subprocess.run(
+                    check_cmd, shell=True, capture_output=True, text=True, timeout=2
+                )
+
+                if result.returncode == 0:
+                    process_name = result.stdout.strip().lower()
+                    # Only kill if it's actually tor
+                    if "tor" not in process_name:
+                        self.logger.warning(
+                            f"PID {pid} is not a Tor process ({process_name}), skipping"
+                        )
+                        return False
+
+                    # Extra safety: don't kill system tor service
+                    if "systemd" in process_name or "system" in process_name:
+                        self.logger.warning(
+                            f"PID {pid} appears to be system Tor service, skipping"
+                        )
+                        return False
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error checking if PID {pid} is safe to kill: {e}")
+            return False
+
+    def _kill_existing_tor_processes(self) -> Tuple[bool, str]:
+        """
+        Kill any existing Tor processes before starting new one.
+        ONLY kills processes we started, not system Tor services.
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            # Kill our own Tor process first if it exists
+            if self._tor_process and self._tor_process.poll() is None:
+                try:
+                    self._tor_process.terminate()
+                    self._tor_process.wait(timeout=5)
+                    self.logger.info("Terminated existing Tor process from this app")
+                    time.sleep(1)
+                    return True, "Cleaned up existing Tor process"
+                except subprocess.TimeoutExpired:
+                    self._tor_process.kill()
+                    self.logger.warning("Had to forcefully kill Tor process")
+                except Exception as e:
+                    self.logger.error(f"Error terminating Tor process: {e}")
+
+            # Check for Tor processes running with our config file
+            if self.system.os_type == "windows":
+                # Windows: Look for tor.exe
+                check_cmd = "tasklist | findstr tor.exe"
+                result = subprocess.run(
+                    check_cmd, shell=True, capture_output=True, text=True, timeout=5
+                )
+
+                if result.returncode == 0 and result.stdout.strip():
+                    # Kill only tor.exe processes
+                    kill_cmd = 'taskkill /F /IM tor.exe /FI "WINDOWTITLE ne *"'
+                    kill_result = subprocess.run(
+                        kill_cmd, shell=True, capture_output=True, text=True, timeout=10
+                    )
+                    if kill_result.returncode == 0:
+                        self.logger.info("Killed Windows Tor processes")
+                        time.sleep(2)
+                        return True, "Cleaned up existing Tor processes"
+            else:
+                # Unix-like: Only kill Tor processes using our specific config file
+                tor_config_path = self.platform_paths.get(
+                    "tor_config", "/etc/tor/torrc"
+                )
+
+                # Find PIDs of processes using our config file
+                check_cmd = f"pgrep -f 'tor.*{tor_config_path}' || true"
+                result = subprocess.run(
+                    check_cmd, shell=True, capture_output=True, text=True, timeout=5
+                )
+
+                if result.returncode == 0 and result.stdout.strip():
+                    pids = result.stdout.strip().split("\n")
+                    self.logger.info(f"Found Tor processes with our config: {pids}")
+
+                    # Kill each PID individually (safer than killall)
+                    killed_any = False
+                    for pid in pids:
+                        if pid and pid.isdigit():
+                            pid_int = int(pid)
+
+                            # Safety check before killing
+                            if not self._is_safe_to_kill(pid_int):
+                                self.logger.warning(f"Skipping unsafe PID: {pid}")
+                                continue
+
+                            try:
+                                # Try without sudo first
+                                kill_result = subprocess.run(
+                                    f"kill {pid}",
+                                    shell=True,
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=5,
+                                )
+
+                                if kill_result.returncode != 0:
+                                    # If that fails, try with sudo
+                                    kill_result = subprocess.run(
+                                        f"sudo kill {pid}",
+                                        shell=True,
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                        input=(
+                                            self._sudo_password + "\n"
+                                            if self._sudo_password
+                                            else ""
+                                        ),
+                                    )
+
+                                self.logger.info(f"Killed Tor process PID: {pid}")
+                                killed_any = True
+                            except Exception as e:
+                                self.logger.warning(f"Could not kill PID {pid}: {e}")
+
+                    if killed_any:
+                        time.sleep(2)
+                        return True, "Cleaned up existing Tor processes"
+                    else:
+                        return True, "No safe Tor processes to clean up"
+
+            # No tor processes found
+            return True, "No existing Tor processes to clean up"
+
+        except subprocess.TimeoutExpired:
+            return False, "Timeout while checking for Tor processes"
+        except Exception as e:
+            self.logger.error(f"Error checking/killing Tor processes: {e}")
+            # Don't fail the start if cleanup fails - just warn
+            return True, f"Cleanup warning: {str(e)}"
+
     def start_tor_manual(
         self, progress_callback: Optional[Callable[[int, str], None]] = None
     ) -> Tuple[bool, str]:
@@ -719,6 +1053,14 @@ class OnionServiceManager:
         """
         if self._tor_process and self._tor_process.poll() is None:
             return True, "Tor is already running."
+
+        # Kill any existing Tor processes first
+        cleanup_success, cleanup_msg = self._kill_existing_tor_processes()
+        if not cleanup_success:
+            self.logger.warning(f"Cleanup warning: {cleanup_msg}")
+            # Continue anyway, might still work
+        else:
+            self.logger.info(cleanup_msg)
 
         try:
             if not self.platform_paths:
@@ -864,7 +1206,7 @@ class OnionServiceManager:
             monitor_thread.start()
 
             # Wait for bootstrap to complete (with timeout)
-            if bootstrap_complete.wait(timeout=120):
+            if bootstrap_complete.wait(timeout=60):
                 # Bootstrap complete, wait a moment for files to be written
                 time.sleep(2)
 
@@ -916,7 +1258,9 @@ class OnionServiceManager:
                 if result.returncode == 0:
                     return result.stdout.strip()
                 else:
-                    self.logger.error(f"Failed to read hostname with sudo: {result.stderr}")
+                    self.logger.error(
+                        f"Failed to read hostname with sudo: {result.stderr}"
+                    )
             else:
                 # Try direct read for other systems
                 if hostname_file.exists():
@@ -959,7 +1303,7 @@ class OnionServiceManager:
 
     def stop_tor(self) -> Tuple[bool, str]:
         """
-        Stop Tor service (both manual and systemctl).
+        Stop Tor service (SAFELY - only our process, not system tor).
 
         Returns:
             Tuple of (success: bool, message: str)
@@ -1106,25 +1450,43 @@ class OnionServiceManager:
         Returns:
             Tuple of (success: bool, message: str, onion_address: Optional[str])
         """
-        # Validate directory
-        valid, msg = self.validate_site_directory(site_directory)
-        if not valid:
-            return False, msg, None
+        method = self.get_hosting_method()
 
-        # Create nginx config
-        success, msg = self.create_nginx_config(site_directory)
-        if not success:
-            return False, msg, None
+        # Validate directory only for nginx method
+        if method == HOSTING_METHOD_NGINX:
+            valid, msg = self.validate_site_directory(site_directory)
+            if not valid:
+                return False, msg, None
 
-        # Configure tor hidden service
+            # Create nginx config
+            success, msg = self.create_nginx_config(site_directory)
+            if not success:
+                return False, msg, None
+
+            # Start nginx
+            success, msg = self.start_nginx()
+            if not success:
+                return False, f"Failed to start Nginx: {msg}", None
+        else:
+            # Custom port method - just validate port exists
+            custom_port = self.config.get("custom_port")
+            if not custom_port:
+                return (
+                    False,
+                    "Custom port not configured. Please set a custom port first.",
+                    None,
+                )
+
+            valid, msg = self.validate_port(custom_port)
+            if not valid:
+                return False, f"Invalid custom port: {msg}", None
+
+            self.logger.info(f"Using custom port method with port {custom_port}")
+
+        # Configure tor hidden service with appropriate port
         success, msg = self.configure_tor_hidden_service()
         if not success:
             return False, msg, None
-
-        # Start nginx
-        success, msg = self.start_nginx()
-        if not success:
-            return False, f"Failed to start Nginx: {msg}", None
 
         # Start tor with manual startup and bootstrap monitoring
         self.logger.info("Starting Tor with bootstrap monitoring...")
