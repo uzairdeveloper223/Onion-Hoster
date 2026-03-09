@@ -1,5 +1,7 @@
 # 🧅 Onion Hoster
 
+## The project worth a try but is AI generated.
+
 [![Version](https://img.shields.io/badge/version-1.0.0-purple)](https://github.com/uzairdeveloper223/Onion-Hoster)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-blue)](https://www.python.org/)
